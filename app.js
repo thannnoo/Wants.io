@@ -19,6 +19,9 @@ const state = {
   editingWantId: null,
 };
 
+// Per-deposit allocation overrides: { wantId: pct } — null means not yet initialized
+let _perDepositAllocs = null;
+
 // ─── Utils ───────────────────────────────────
 const $ = (s, ctx = document) => ctx.querySelector(s);
 const $$ = (s, ctx = document) => [...ctx.querySelectorAll(s)];
@@ -87,19 +90,28 @@ function totalAllocPct() {
 
 // Split a deposit amount into parts
 function calcDepositSplit(amount, savingsPct) {
+  return calcDepositSplitCustom(amount, savingsPct, Object.fromEntries(state.wants.map(w => [w.id, w.allocationPercent || 0])));
+}
+
+function calcDepositSplitCustom(amount, savingsPct, allocOverrides) {
   const savedToReserve = round2(amount * savingsPct / 100);
   const allocatable    = round2(amount - savedToReserve);
   const allocations    = state.wants
-    .filter(w => (w.allocationPercent || 0) > 0)
+    .filter(w => (allocOverrides[w.id] || 0) > 0)
     .map(w => ({
       wantId:       w.id,
       wantName:     w.name,
-      allocPercent: w.allocationPercent,
-      amount:       round2(allocatable * w.allocationPercent / 100),
+      allocPercent: allocOverrides[w.id] || 0,
+      amount:       round2(allocatable * (allocOverrides[w.id] || 0) / 100),
     }));
   const totalAllocated = allocations.reduce((s, a) => s + a.amount, 0);
   const unallocated    = round2(allocatable - totalAllocated);
   return { savedToReserve, allocatable, allocations, unallocated };
+}
+
+function initPerDepositAllocs() {
+  _perDepositAllocs = {};
+  state.wants.forEach(w => { _perDepositAllocs[w.id] = w.allocationPercent || 0; });
 }
 function round2(n) { return Math.round(n * 100) / 100; }
 
@@ -637,24 +649,95 @@ function updateDepositPreview() {
   const preview = $('#deposit-preview');
   const rows    = $('#deposit-preview-rows');
 
-  if (amount <= 0) { preview.hidden = true; return; }
+  if (amount <= 0) { preview.hidden = true; _perDepositAllocs = null; return; }
   preview.removeAttribute('hidden');
 
-  const { savedToReserve, allocations, unallocated } = calcDepositSplit(amount, savPct);
+  // Init or sync allocs (adds new wants, keeps user edits)
+  if (_perDepositAllocs === null) {
+    initPerDepositAllocs();
+  } else {
+    state.wants.forEach(w => {
+      if (!(w.id in _perDepositAllocs)) _perDepositAllocs[w.id] = w.allocationPercent || 0;
+    });
+  }
 
-  const parts = [
-    { label: 'Kept in Savings', pct: savPct, amount: savedToReserve, color: '#38bdf8' },
-    ...allocations.map((al, i) => ({ label: al.wantName, pct: al.allocPercent, amount: al.amount, color: paletteColor(i + 1) })),
-    ...(unallocated > 0.005 ? [{ label: 'Unallocated (Available)', pct: null, amount: unallocated, color: null }] : []),
-  ];
+  // Rebuild if never built or want count changed
+  const existingRows = $$('.preview-want-row', rows);
+  if (rows.children.length === 0 || existingRows.length !== state.wants.length) {
+    _buildDepositPreviewRows(rows, amount, savPct);
+  } else {
+    _updateDepositPreviewAmounts(rows, amount, savPct);
+  }
+}
 
-  rows.innerHTML = parts.map(p => `
-    <div class="preview-row${p.color ? '' : ' unallocated'}">
-      <div class="preview-dot" style="background:${p.color || 'var(--text3)'}"></div>
-      <div class="preview-label">${esc(p.label)}</div>
-      ${p.pct != null ? `<div class="preview-pct">${p.pct}%</div>` : ''}
-      <div class="preview-amount">${fmt(p.amount)}</div>
-    </div>`).join('');
+function _buildDepositPreviewRows(rows, amount, savPct) {
+  const savAmt = round2(amount * savPct / 100);
+  const allocatable = round2(amount - savAmt);
+
+  const wantRows = state.wants.map((w, i) => {
+    const pct = _perDepositAllocs[w.id] ?? 0;
+    const dollarAmt = round2(allocatable * pct / 100);
+    return `
+      <div class="preview-row preview-want-row" data-want-id="${w.id}">
+        <div class="preview-dot" style="background:${paletteColor(i + 1)}"></div>
+        <div class="preview-label">${esc(w.name)}</div>
+        <div class="preview-pct-edit">
+          <input class="preview-pct-input" type="number" min="0" max="100" step="0.1"
+            value="${pct}" data-want-id="${w.id}" aria-label="${esc(w.name)} allocation %">
+          <span class="preview-pct-sym">%</span>
+        </div>
+        <div class="preview-amount preview-want-amt">${fmt(dollarAmt)}</div>
+      </div>`;
+  }).join('');
+
+  const totalWantAlloc = state.wants.reduce((s, w) => s + round2(allocatable * (_perDepositAllocs[w.id] || 0) / 100), 0);
+  const toBank = round2(allocatable - totalWantAlloc);
+
+  rows.innerHTML = `
+    <div class="preview-row preview-savings-row">
+      <div class="preview-dot" style="background:#38bdf8"></div>
+      <div class="preview-label">Kept in Savings</div>
+      <div class="preview-pct preview-sav-pct">${savPct}%</div>
+      <div class="preview-amount preview-sav-amt">${fmt(savAmt)}</div>
+    </div>
+    ${wantRows}
+    <div class="preview-row preview-bank-row">
+      <div class="preview-dot" style="background:var(--text3)"></div>
+      <div class="preview-label">To Available Bank</div>
+      <div class="preview-amount preview-bank-amt">${fmt(toBank)}</div>
+    </div>`;
+
+  $$('.preview-pct-input', rows).forEach(input => {
+    input.addEventListener('input', () => {
+      _perDepositAllocs[input.dataset.wantId] = parseFloat(input.value) || 0;
+      _updateDepositPreviewAmounts(rows,
+        parseFloat($('#deposit-amount').value) || 0,
+        parseFloat($('#deposit-savings-pct').value) || 0);
+    });
+  });
+}
+
+function _updateDepositPreviewAmounts(rows, amount, savPct) {
+  const savAmt = round2(amount * savPct / 100);
+  const allocatable = round2(amount - savAmt);
+
+  const savAmtEl = $('.preview-sav-amt', rows);
+  if (savAmtEl) savAmtEl.textContent = fmt(savAmt);
+  const savPctEl = $('.preview-sav-pct', rows);
+  if (savPctEl) savPctEl.textContent = savPct + '%';
+
+  let totalWantAlloc = 0;
+  $$('.preview-want-row', rows).forEach(row => {
+    const wantId = row.dataset.wantId;
+    const pct = _perDepositAllocs[wantId] || 0;
+    const dollarAmt = round2(allocatable * pct / 100);
+    totalWantAlloc += dollarAmt;
+    const amtEl = row.querySelector('.preview-want-amt');
+    if (amtEl) amtEl.textContent = fmt(dollarAmt);
+  });
+
+  const bankAmtEl = $('.preview-bank-amt', rows);
+  if (bankAmtEl) bankAmtEl.textContent = fmt(round2(allocatable - totalWantAlloc));
 }
 
 function setDepositDateDefault() {
@@ -677,7 +760,8 @@ $('#add-deposit-btn').addEventListener('click', async () => {
 
   const date = new Date(dateInput + 'T12:00:00').toISOString();
 
-  const { savedToReserve, allocations, unallocated } = calcDepositSplit(amount, savPct);
+  const allocOverrides = _perDepositAllocs || Object.fromEntries(state.wants.map(w => [w.id, w.allocationPercent || 0]));
+  const { savedToReserve, allocations, unallocated } = calcDepositSplitCustom(amount, savPct, allocOverrides);
   const deposit = {
     id: uid(), amount, savingsPercent: savPct,
     savedToReserve, allocations, unallocated,
@@ -685,6 +769,7 @@ $('#add-deposit-btn').addEventListener('click', async () => {
   };
 
   await storage.saveDeposit(deposit);
+  _perDepositAllocs = null;
   $('#deposit-amount').value = '';
   $('#deposit-note').value   = '';
   $('#deposit-preview').hidden = true;
