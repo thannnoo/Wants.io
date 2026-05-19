@@ -330,7 +330,7 @@ function renderHome() {
     const thumb = w.image
       ? `<img class="home-want-thumb" src="${escAttr(w.image)}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="home-want-thumb-placeholder" style="display:none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>`
       : `<div class="home-want-thumb-placeholder"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>`;
-    return `<div class="home-want-row glass-card">${thumb}<div class="home-want-info"><div class="home-want-name">${esc(w.name)}</div><div class="home-want-bar-track"><div class="home-want-bar-fill" style="width:${pct}%"></div></div></div><div class="home-want-pct">${pct}%</div></div>`;
+    return `<div class="home-want-row glass-card" onclick="openWantDetail('${w.id}')" style="cursor:pointer">${thumb}<div class="home-want-info"><div class="home-want-name">${esc(w.name)}</div><div class="home-want-bar-track"><div class="home-want-bar-fill" style="width:${pct}%"></div></div></div><div class="home-want-pct">${pct}%</div></div>`;
   }).join('');
 }
 
@@ -456,8 +456,11 @@ function buildWantCard(w) {
     ? `<img class="want-card-img" src="${escAttr(w.image)}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="want-card-img-placeholder" style="display:none"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>`
     : `<div class="want-card-img-placeholder"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>`;
 
+  const price     = w.price || 0;
+  const remaining = Math.max(0, round2(price - saved));
+
   return `
-    <div class="want-card glass-card">
+    <div class="want-card glass-card" onclick="openWantDetail('${w.id}')" style="cursor:pointer">
       ${imgEl}
       <div class="want-card-body">
         <div class="want-card-name">${esc(w.name)} ${funded ? '<span class="funded-badge">✓ Funded</span>' : ''}</div>
@@ -466,11 +469,12 @@ function buildWantCard(w) {
         <div class="want-card-meta">
           <div class="want-card-pct">${w.allocationPercent || 0}% alloc</div>
           <div class="want-card-saved">${fmt(saved)} saved</div>
+          ${!funded && price > 0 ? `<div class="want-card-remaining">${fmt(remaining)} to go</div>` : ''}
         </div>
         <div class="want-card-actions">
-          ${w.url ? `<a class="want-card-btn" href="${escAttr(w.url)}" target="_blank" rel="noopener">Buy</a>` : ''}
-          <button class="want-card-btn" data-action="edit" data-id="${w.id}">Edit</button>
-          <button class="want-card-btn danger" data-action="delete" data-id="${w.id}">✕</button>
+          ${w.url ? `<a class="want-card-btn" href="${escAttr(w.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Buy</a>` : ''}
+          <button class="want-card-btn" onclick="event.stopPropagation();openEditWant('${w.id}')">Edit</button>
+          <button class="want-card-btn danger" onclick="event.stopPropagation();confirmDeleteWant('${w.id}')">✕</button>
         </div>
       </div>
     </div>`;
@@ -620,8 +624,35 @@ function renderProjections() {
     const avgMonthlyStr = eta.avgMonthly ? fmt(eta.avgMonthly) + '/mo' : '–';
     const remainingStr  = !eta.funded && eta.remaining != null ? fmt(eta.remaining) + ' to go' : '';
 
+    const contributions = state.deposits
+      .filter(d => (d.allocations || []).some(a => a.wantId === w.id))
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .slice(0, 8);
+    const totalContrib = round2(contributions.reduce((s,d) => {
+      const al = d.allocations.find(a => a.wantId === w.id);
+      return s + (al ? al.amount : 0);
+    }, 0));
+
+    const contribHtml = contributions.length ? `
+      <div class="proj-contrib-section">
+        <div class="proj-contrib-title">Deposit Breakdown</div>
+        ${contributions.map(d => {
+          const al = d.allocations.find(a => a.wantId === w.id);
+          return `<div class="proj-contrib-row">
+            <span class="proj-contrib-date">${fmtDateShort(d.date)}</span>
+            <span class="proj-contrib-pct">${al.allocPercent}%</span>
+            <span class="proj-contrib-amt">${fmt(al.amount)}</span>
+          </div>`;
+        }).join('')}
+        <div class="proj-contrib-row proj-contrib-total">
+          <span class="proj-contrib-date">Total</span>
+          <span class="proj-contrib-pct"></span>
+          <span class="proj-contrib-amt">${fmt(totalContrib)}</span>
+        </div>
+      </div>` : '';
+
     return `
-      <div class="projection-card glass-card">
+      <div class="projection-card glass-card" onclick="openWantDetail('${w.id}')" style="cursor:pointer">
         <div class="projection-header">
           <div>
             <div class="projection-name">${esc(w.name)}</div>
@@ -638,6 +669,7 @@ function renderProjections() {
           <div class="projection-stat"><strong>${avgMonthlyStr}</strong>Avg/month</div>
           <div class="projection-stat"><strong>${(w.allocationPercent || 0)}%</strong>Allocation</div>
         </div>
+        ${contribHtml}
       </div>`;
   }).join('');
 }
@@ -777,6 +809,116 @@ $('#add-deposit-btn').addEventListener('click', async () => {
   toast('Deposit added ✓');
   renderBank();
 });
+
+// ─── Want Detail Drawer ──────────────────────
+function openWantDetail(id) {
+  const want = state.wants.find(w => w.id === id);
+  if (!want) return;
+  renderWantDetailBody(want);
+  showModal('#want-detail-modal');
+}
+window.openWantDetail = openWantDetail;
+
+function renderWantDetailBody(want) {
+  const saved     = getWantSaved(want.id);
+  const price     = want.price || 0;
+  const remaining = Math.max(0, round2(price - saved));
+  const pct       = getWantProgress(want);
+  const funded    = pct >= 100;
+
+  // Per-deposit contributions from historical deposit data
+  const contributions = state.deposits
+    .filter(d => (d.allocations || []).some(a => a.wantId === want.id))
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .map(d => {
+      const al = d.allocations.find(a => a.wantId === want.id);
+      return { date: d.date, amount: al.amount, pct: al.allocPercent, depositAmt: d.amount };
+    });
+  const totalFromHistory = round2(contributions.reduce((s, c) => s + c.amount, 0));
+
+  const imgHtml = want.image
+    ? `<img class="want-detail-img" src="${escAttr(want.image)}" alt="" onerror="this.style.display='none'">`
+    : '';
+
+  const contribRows = contributions.length
+    ? contributions.map(c => `
+        <div class="contrib-row">
+          <div class="contrib-date">${fmtDateShort(c.date)}</div>
+          <div class="contrib-pct">${c.pct}%</div>
+          <div class="contrib-amt">${fmt(c.amount)}</div>
+        </div>`).join('')
+    : `<div class="contrib-empty">No deposit history yet</div>`;
+
+  $('#want-detail-body').innerHTML = `
+    ${imgHtml}
+    <div class="want-detail-meta">
+      <div class="want-detail-price">${fmtFull(price)}</div>
+      ${want.description ? `<div class="want-detail-desc">${esc(want.description)}</div>` : ''}
+    </div>
+
+    <div class="want-detail-progress">
+      <div class="want-detail-bar-track">
+        <div class="want-detail-bar-fill" style="width:${Math.min(pct,100).toFixed(1)}%"></div>
+      </div>
+      <div class="want-detail-amounts">
+        <div class="want-detail-amount-item">
+          <div class="want-detail-amount-val">${fmt(saved)}</div>
+          <div class="want-detail-amount-lbl">Saved</div>
+        </div>
+        <div class="want-detail-amount-item center">
+          <div class="want-detail-amount-val gradient-text">${pct.toFixed(0)}%</div>
+          <div class="want-detail-amount-lbl">Complete</div>
+        </div>
+        <div class="want-detail-amount-item right">
+          <div class="want-detail-amount-val ${funded ? 'funded-color' : ''}">${funded ? 'Funded!' : fmt(remaining)}</div>
+          <div class="want-detail-amount-lbl">${funded ? '' : 'Remaining'}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="want-detail-alloc-row">
+      <div class="want-detail-section-label">Allocation %</div>
+      <div class="want-detail-alloc-edit">
+        <div class="preview-pct-edit">
+          <input class="preview-pct-input" type="number" min="0" max="100" step="1"
+            id="want-detail-alloc-input" value="${want.allocationPercent || 0}">
+          <span class="preview-pct-sym">%</span>
+        </div>
+        <button class="btn-primary btn-sm" id="want-detail-save-alloc">Save</button>
+      </div>
+    </div>
+
+    <div class="want-detail-section-label" style="margin-top:4px">Deposit Contributions</div>
+    <div class="contrib-table">
+      <div class="contrib-header">
+        <div class="contrib-date">Date</div>
+        <div class="contrib-pct">Alloc %</div>
+        <div class="contrib-amt">Amount</div>
+      </div>
+      ${contribRows}
+      ${contributions.length ? `<div class="contrib-total">
+        <div class="contrib-date" style="font-weight:700;color:var(--text)">Total</div>
+        <div class="contrib-pct"></div>
+        <div class="contrib-amt" style="font-weight:800">${fmt(totalFromHistory)}</div>
+      </div>` : ''}
+    </div>
+
+    <div class="want-detail-actions">
+      ${want.url ? `<a class="btn-ghost" href="${escAttr(want.url)}" target="_blank" rel="noopener" style="text-align:center">View Product</a>` : ''}
+      <button class="btn-primary" onclick="hideModal('#want-detail-modal');openEditWant('${want.id}')">Edit Want</button>
+    </div>`;
+
+  // Wire up alloc save button
+  $('#want-detail-save-alloc').addEventListener('click', async () => {
+    const newPct = parseFloat($('#want-detail-alloc-input').value) || 0;
+    const updated = { ...want, allocationPercent: newPct };
+    await storage.saveWant(updated);
+    toast('Allocation updated ✓');
+    renderWantDetailBody(state.wants.find(w => w.id === want.id) || updated);
+  });
+}
+
+$('#close-want-detail').addEventListener('click', () => hideModal('#want-detail-modal'));
 
 // ─── Add/Edit Want Modal ──────────────────────
 function openAddWant() {
