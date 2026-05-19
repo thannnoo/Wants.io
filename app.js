@@ -335,7 +335,7 @@ function renderBank() {
   $('#bank-liquid').textContent    = fmt(liquid);
   $('#bank-in-wants').textContent  = fmt(inWants);
   $('#bank-total-in').textContent  = fmt(totalIn);
-  $('#bank-available').textContent = fmt(available);
+  $('#bank-available').textContent = fmt(getUnallocatedBank());
   $('#bank-unallocated').textContent = `${fmt(unallocated)} unallocated (${unallocPct.toFixed(0)}%)`;
 
   // Allocation setup list
