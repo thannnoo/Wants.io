@@ -342,6 +342,23 @@ body {
 }
 .preview-row.unallocated .preview-amount { background: none; -webkit-text-fill-color: var(--text3); color: var(--text3); font-weight: 600; }
 
+.preview-pct-edit {
+  display: flex; align-items: center; gap: 2px;
+  background: var(--input-bg); border: 1px solid var(--border1);
+  border-radius: 6px; padding: 2px 6px;
+  flex-shrink: 0;
+}
+.preview-pct-input {
+  width: 46px; background: transparent; border: none; outline: none;
+  font-size: 13px; font-weight: 700; color: var(--text1);
+  text-align: right; -moz-appearance: textfield;
+}
+.preview-pct-input::-webkit-outer-spin-button,
+.preview-pct-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.preview-pct-sym { font-size: 12px; color: var(--text3); }
+.preview-bank-row .preview-amount { background: none; -webkit-text-fill-color: var(--text2); color: var(--text2); font-weight: 700; }
+.preview-bank-row .preview-label { color: var(--text3); font-weight: 500; }
+
 /* ─── Allocation List (Bank) ─── */
 .allocation-list { display: flex; flex-direction: column; gap: 10px; }
 .alloc-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: var(--radius-md); flex-wrap: wrap; }
