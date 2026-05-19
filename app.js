@@ -734,46 +734,60 @@ $('#fetch-url-btn').addEventListener('click', async () => {
   $('#fetch-label').hidden = true; $('#fetch-spinner').hidden = false;
   try {
     const data = await fetchProductData(url);
-    if (data) {
-      if (data.title)       $('#want-name').value  = data.title;
-      if (data.description) $('#want-desc').value  = data.description;
-      if (data.image)       setPreviewImage(data.image);
-      if (data.price)       $('#want-price').value = data.price;
-      toast('Details fetched ✓');
-    } else {
-      toast('Could not auto-fill — fill in manually');
-    }
+    const filled = [];
+    if (data?.title)       { $('#want-name').value  = data.title;       filled.push('name'); }
+    if (data?.description) { $('#want-desc').value  = data.description; filled.push('description'); }
+    if (data?.image)       { setPreviewImage(data.image);               filled.push('image'); }
+    if (data?.price)       { $('#want-price').value = data.price;       filled.push('price'); }
+    if (filled.length)  toast(`Filled: ${filled.join(', ')} ✓`);
+    else toast('This retailer blocks auto-fill — enter details manually');
   } catch { toast('Could not auto-fill — fill in manually'); }
   finally { resetFetchBtn(); }
 });
 
+const BAD_TITLES = ['page not found','404','access denied','just a moment','are you a human','robot','captcha','blocked','unavailable'];
+function isUsableTitle(t) {
+  if (!t) return false;
+  const lower = t.toLowerCase();
+  return !BAD_TITLES.some(bad => lower.includes(bad));
+}
+
 async function fetchProductData(rawUrl) {
-  // ── 1. Microlink (fast, good OG coverage) ──
+  // ── 1. Microlink ──────────────────────────────
   try {
     const res  = await fetch(`https://api.microlink.io/?url=${encodeURIComponent(rawUrl)}`);
     const json = await res.json();
     if (json.status === 'success') {
       const d = json.data;
+      const title = isUsableTitle(d.title) ? d.title : null;
       let price = null;
       const priceRaw = d.price?.amount ?? d.price?.value ?? d.price?.text ?? null;
       if (priceRaw != null) price = parseFloat(String(priceRaw).replace(/[^0-9.]/g, '')) || null;
-      return {
-        title:       d.title || d.name || null,
-        description: d.description || null,
-        image:       d.image?.url || d.logo?.url || null,
-        price,
-      };
+      const result = { title, description: d.description || null, image: d.image?.url || null, price };
+      if (result.title || result.image) return result;
     }
   } catch { /* fall through */ }
 
-  // ── 2. CORS proxy + manual OG parsing ──────
+  // ── 2. corsproxy.io (raw HTML) ────────────────
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 9000);
-    const res  = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(rawUrl)}`, { signal: controller.signal });
-    clearTimeout(timer);
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 10000);
+    const res  = await fetch(`https://corsproxy.io/?${encodeURIComponent(rawUrl)}`, { signal: ctrl.signal });
+    clearTimeout(t);
+    const html = await res.text();
+    const result = parseProductFromHTML(html);
+    if (result.title || result.image) return result;
+  } catch { /* fall through */ }
+
+  // ── 3. allorigins.win (JSON wrapper) ──────────
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 10000);
+    const res  = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(rawUrl)}`, { signal: ctrl.signal });
+    clearTimeout(t);
     const json = await res.json();
-    return parseProductFromHTML(json.contents || '');
+    const result = parseProductFromHTML(json.contents || '');
+    if (result.title || result.image) return result;
   } catch { /* fall through */ }
 
   return null;
