@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Wants.io</title>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+<div class="app" id="app">
+
+  <!-- Ambient Background Orbs -->
+  <div class="bg-orbs" aria-hidden="true">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+
+  <!-- Header -->
+  <header class="header glass-surface">
+    <div class="header-logo">
+      <span class="logo-text">Wants.io</span>
+      <span class="sync-badge" id="sync-badge" title="Storage mode">
+        <span class="sync-dot"></span>
+        <span id="sync-label">Local</span>
+      </span>
+    </div>
+    <div class="header-actions">
+      <button class="btn-icon" id="vault-btn" title="Vault / Sync settings">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="theme-toggle" title="Toggle theme">
+        <svg id="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+        <svg id="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+          <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main-content">
+
+    <!-- ── HOME TAB ── -->
+    <div id="home-panel" class="tab-panel" data-panel="home">
+      <div class="panel-inner">
+
+        <div class="section-title">Overview</div>
+
+        <!-- Savings hero card -->
+        <div class="hero-card glass-card">
+          <div class="hero-label">Total Savings</div>
+          <div class="hero-amount" id="home-savings">$0.00</div>
+          <div class="hero-sub" id="home-allocated-pct">0% allocated to wants</div>
+          <div class="hero-bar-track">
+            <div class="hero-bar-fill" id="home-bar-fill"></div>
+          </div>
+        </div>
+
+        <!-- Stats row -->
+        <div class="stats-row">
+          <div class="stat-card glass-card">
+            <div class="stat-icon">🎯</div>
+            <div class="stat-value" id="home-want-count">0</div>
+            <div class="stat-label">Wants</div>
+          </div>
+          <div class="stat-card glass-card">
+            <div class="stat-icon">💸</div>
+            <div class="stat-value" id="home-total-cost">$0</div>
+            <div class="stat-label">Total Cost</div>
+          </div>
+          <div class="stat-card glass-card">
+            <div class="stat-icon">✅</div>
+            <div class="stat-value" id="home-funded-count">0</div>
+            <div class="stat-label">Funded</div>
+          </div>
+        </div>
+
+        <!-- Wants preview -->
+        <div class="section-header">
+          <div class="section-title">Your Wants</div>
+        </div>
+        <div id="home-wants-list" class="home-wants-list">
+          <div class="empty-state">
+            <div class="empty-icon">✨</div>
+            <div class="empty-title">Nothing here yet</div>
+            <div class="empty-sub">Head to Wants to add your first item</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── BANK TAB ── -->
+    <div id="bank-panel" class="tab-panel" data-panel="bank" hidden>
+      <div class="panel-inner">
+
+        <div class="section-title">Bank</div>
+
+        <!-- Current balance card -->
+        <div class="hero-card glass-card">
+          <div class="hero-label">Current Savings</div>
+          <div class="hero-amount" id="bank-savings-display">$0.00</div>
+          <div class="hero-sub" id="bank-last-updated">Never updated</div>
+        </div>
+
+        <!-- Update savings form -->
+        <div class="form-card glass-card">
+          <div class="form-card-title">Update Total Savings</div>
+          <div class="input-group">
+            <span class="input-prefix">$</span>
+            <input type="number" id="savings-input" class="input-field" placeholder="0.00" min="0" step="0.01" />
+          </div>
+          <button class="btn-primary" id="update-savings-btn">Update Savings</button>
+        </div>
+
+        <!-- Allocation breakdown -->
+        <div class="section-header">
+          <div class="section-title">Allocation Breakdown</div>
+          <div class="section-sub" id="bank-unallocated">100% unallocated</div>
+        </div>
+
+        <div id="allocation-list" class="allocation-list">
+          <div class="empty-state">
+            <div class="empty-icon">📊</div>
+            <div class="empty-title">No allocations yet</div>
+            <div class="empty-sub">Add wants and set allocation percentages</div>
+          </div>
+        </div>
+
+        <!-- Savings history -->
+        <div class="section-header">
+          <div class="section-title">History</div>
+        </div>
+        <div id="savings-history" class="history-list"></div>
+
+      </div>
+    </div>
+
+    <!-- ── WANTS TAB ── -->
+    <div id="wants-panel" class="tab-panel" data-panel="wants" hidden>
+      <div class="panel-inner">
+
+        <div class="section-header">
+          <div class="section-title">My Wants</div>
+          <button class="btn-primary btn-sm" id="open-add-want">+ Add Want</button>
+        </div>
+
+        <div id="wants-grid" class="wants-grid">
+          <div class="empty-state">
+            <div class="empty-icon">🛍️</div>
+            <div class="empty-title">Your list is empty</div>
+            <div class="empty-sub">Drop a link or add manually</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Bottom Tab Navigation -->
+  <nav class="tab-nav glass-surface">
+    <button class="tab-btn active" data-tab="home">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/>
+      </svg>
+      <span>Home</span>
+    </button>
+    <button class="tab-btn" data-tab="bank">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
+      </svg>
+      <span>Bank</span>
+    </button>
+    <button class="tab-btn" data-tab="wants">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
+      </svg>
+      <span>Wants</span>
+    </button>
+  </nav>
+
+</div>
+
+<!-- ── ADD WANT MODAL ── -->
+<div id="want-modal" class="modal-overlay" hidden>
+  <div class="modal-sheet glass-surface" role="dialog" aria-modal="true" aria-label="Add Want">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <h2 class="modal-title gradient-text" id="modal-title-text">Add a Want</h2>
+      <button class="btn-icon" id="close-modal">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <!-- URL fetch row -->
+    <div class="url-fetch-row">
+      <div class="input-group url-input-group">
+        <input type="url" id="want-url" class="input-field" placeholder="Paste product link to auto-fill…" />
+        <button class="btn-fetch" id="fetch-url-btn">
+          <span id="fetch-label">Fetch</span>
+          <span id="fetch-spinner" class="spinner" hidden></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Image preview -->
+    <div class="img-preview-wrap" id="img-preview-wrap" hidden>
+      <img id="want-img-preview" class="img-preview" src="" alt="Product" />
+      <button class="img-clear-btn" id="img-clear-btn">×</button>
+    </div>
+
+    <!-- Form fields -->
+    <div class="modal-form">
+      <div class="field-group">
+        <label class="field-label">Item Name *</label>
+        <input type="text" id="want-name" class="input-field" placeholder="e.g. AirPods Max" />
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label">Price *</label>
+          <div class="input-group">
+            <span class="input-prefix">$</span>
+            <input type="number" id="want-price" class="input-field" placeholder="0.00" min="0" step="0.01" />
+          </div>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Allocation %</label>
+          <div class="input-group">
+            <input type="number" id="want-alloc" class="input-field" placeholder="0" min="0" max="100" step="1" />
+            <span class="input-suffix">%</span>
+          </div>
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Description</label>
+        <textarea id="want-desc" class="input-field textarea-field" placeholder="Add a note…" rows="2"></textarea>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Image URL (optional override)</label>
+        <input type="url" id="want-img-url" class="input-field" placeholder="https://…" />
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-ghost" id="cancel-want-btn">Cancel</button>
+      <button class="btn-primary" id="save-want-btn">Save Want</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── VAULT MODAL ── -->
+<div id="vault-modal" class="modal-overlay" hidden>
+  <div class="modal-sheet glass-surface" role="dialog" aria-modal="true" aria-label="Vault Settings">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <h2 class="modal-title gradient-text">Sync Settings</h2>
+      <button class="btn-icon" id="close-vault-modal">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="vault-info">
+      <p class="vault-desc">Enter the same <strong>Vault ID</strong> on all your devices to sync your data. Add your Firebase config for real-time sync, or leave blank to use local storage only.</p>
+      <div class="field-group">
+        <label class="field-label">Vault ID</label>
+        <div class="input-group">
+          <input type="text" id="vault-id-input" class="input-field" placeholder="my-vault-123" />
+          <button class="btn-fetch" id="gen-vault-id">Gen</button>
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Firebase Config (paste JSON)</label>
+        <textarea id="firebase-config-input" class="input-field textarea-field" rows="5" placeholder='{"apiKey":"...","authDomain":"...","projectId":"...",...}'></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-ghost" id="close-vault-cancel">Cancel</button>
+        <button class="btn-primary" id="save-vault-btn">Save & Connect</button>
+      </div>
+      <div class="vault-help">
+        <a href="https://console.firebase.google.com/" target="_blank" rel="noopener" class="link-subtle">Create a free Firebase project →</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast notification -->
+<div id="toast" class="toast" role="alert" aria-live="polite"></div>
+
+<!-- Firebase SDKs (loaded if Firebase config is present) -->
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+
+<script src="app.js"></script>
+</body>
+</html>
