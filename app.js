@@ -60,16 +60,22 @@ function getLiquidSavings() {
 function getTotalDeposited() {
   return state.deposits.reduce((s, d) => s + (d.amount || 0), 0);
 }
-function getTotalInWants() {
-  return state.deposits.reduce((s, d) => {
-    return s + (d.allocations || []).reduce((a, al) => a + (al.amount || 0), 0);
-  }, 0);
+function getAvailableBank() {
+  return round2(getTotalDeposited() - getLiquidSavings());
 }
+// Each want's saved amount = its allocation % of the available bank (live model)
 function getWantSaved(wantId) {
-  return state.deposits.reduce((s, d) => {
-    const al = (d.allocations || []).find(a => a.wantId === wantId);
-    return s + (al ? al.amount : 0);
-  }, 0);
+  const want = state.wants.find(w => w.id === wantId);
+  if (!want || !want.allocationPercent) return 0;
+  return round2(getAvailableBank() * want.allocationPercent / 100);
+}
+// Total allocated across all wants = sum of their shares of available bank
+function getTotalInWants() {
+  return round2(state.wants.reduce((s, w) => s + getAvailableBank() * (w.allocationPercent || 0) / 100, 0));
+}
+// Unallocated = available bank minus what's earmarked for wants
+function getUnallocatedBank() {
+  return round2(getAvailableBank() - getTotalInWants());
 }
 function getWantProgress(want) {
   if (!want.price || want.price === 0) return 0;
@@ -77,9 +83,6 @@ function getWantProgress(want) {
 }
 function totalAllocPct() {
   return state.wants.reduce((s, w) => s + (w.allocationPercent || 0), 0);
-}
-function getAvailableBank() {
-  return round2(getTotalDeposited() - getLiquidSavings());
 }
 
 // Split a deposit amount into parts
@@ -324,15 +327,16 @@ function renderBank() {
   setDepositDateDefault();
   const liquid    = getLiquidSavings();
   const inWants   = getTotalInWants();
-  const totalIn   = getTotalDeposited();
-  const available = getAvailableBank();
-  const unalloc   = Math.max(0, 100 - totalAllocPct());
+  const totalIn        = getTotalDeposited();
+  const available      = getAvailableBank();
+  const unallocated    = getUnallocatedBank();
+  const unallocPct     = Math.max(0, 100 - totalAllocPct());
 
   $('#bank-liquid').textContent    = fmt(liquid);
   $('#bank-in-wants').textContent  = fmt(inWants);
   $('#bank-total-in').textContent  = fmt(totalIn);
   $('#bank-available').textContent = fmt(available);
-  $('#bank-unallocated').textContent = unalloc.toFixed(0) + '% unallocated';
+  $('#bank-unallocated').textContent = `${fmt(unallocated)} unallocated (${unallocPct.toFixed(0)}%)`;
 
   // Allocation setup list
   const allocEl = $('#allocation-list');
@@ -343,13 +347,18 @@ function renderBank() {
     if (!hasAlloc) {
       allocEl.innerHTML = `<div class="empty-state"><div class="empty-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div><div class="empty-title">No allocations set</div><div class="empty-sub">Edit your wants to add percentages</div></div>`;
     } else {
-      allocEl.innerHTML = state.wants.filter(w => (w.allocationPercent || 0) > 0).map((w, i) => `
+      allocEl.innerHTML = state.wants.filter(w => (w.allocationPercent || 0) > 0).map((w, i) => {
+        const allocated = getWantSaved(w.id);
+        const progress  = getWantProgress(w);
+        return `
         <div class="alloc-row glass-card">
           <div class="alloc-color-dot" style="background:${paletteColor(i)}"></div>
           <div class="alloc-name">${esc(w.name)}</div>
           <div class="alloc-pct">${w.allocationPercent}%</div>
-          <div class="alloc-amount">${fmt(getWantSaved(w.id))}</div>
-        </div>`).join('');
+          <div class="alloc-amount">${fmt(allocated)}</div>
+          <div class="alloc-bar-wrap"><div class="alloc-bar-fill" style="width:${progress.toFixed(1)}%;background:${paletteColor(i)}"></div></div>
+        </div>`;
+      }).join('');
     }
   }
 
