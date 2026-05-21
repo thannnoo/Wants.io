@@ -306,6 +306,25 @@ body {
 /* ─── Form Card ─── */
 .form-card { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
 .form-card-title { font-size: 16px; font-weight: 700; color: var(--text); }
+.form-card-header { display: flex; align-items: center; justify-content: space-between; }
+
+/* ─── Deposit/Withdrawal Toggle ─── */
+.dep-type-toggle { display: flex; background: var(--glass-strong); border-radius: 10px; padding: 3px; gap: 3px; }
+.dep-type-pill {
+  flex: 1; padding: 7px 16px; border-radius: 8px; border: none; cursor: pointer;
+  font-size: 13px; font-weight: 700; background: transparent; color: var(--text3);
+  transition: all 0.2s var(--ease);
+}
+.dep-type-pill.active { background: var(--bg2); color: var(--text); box-shadow: var(--shadow-sm); }
+.dep-type-pill[data-type="withdrawal"].active { background: rgba(248,113,113,0.18); color: #f87171; }
+
+/* ─── Withdrawal styling ─── */
+.withdrawal-amount { color: #f87171 !important; background: none !important; -webkit-text-fill-color: #f87171 !important; }
+.withdrawal-item { border-color: rgba(248,113,113,0.25) !important; }
+.withdrawal-icon { color: #f87171; }
+.withdrawal-icon svg { stroke: #f87171; }
+.withdrawal-mode { border-color: rgba(248,113,113,0.3) !important; }
+.btn-danger { background: linear-gradient(135deg, #f87171, #ef4444) !important; }
 .field-group { display: flex; flex-direction: column; gap: 6px; }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .field-label { font-size: 13px; font-weight: 600; color: var(--text2); }

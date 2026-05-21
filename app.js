@@ -61,7 +61,10 @@ function getLiquidSavings() {
   return state.deposits.reduce((s, d) => s + (d.savedToReserve || 0), 0);
 }
 function getTotalDeposited() {
-  return state.deposits.reduce((s, d) => s + (d.amount || 0), 0);
+  return state.deposits.reduce((s, d) => {
+    if (d.type === 'withdrawal') return s - (d.amount || 0);
+    return s + (d.amount || 0);
+  }, 0);
 }
 function getAvailableBank() {
   return round2(getTotalDeposited() - getLiquidSavings());
@@ -387,6 +390,36 @@ function renderDepositHistory() {
 
   const sorted = [...state.deposits].sort((a, b) => new Date(b.date) - new Date(a.date));
   el.innerHTML = sorted.map(dep => {
+    const isWithdrawal = dep.type === 'withdrawal';
+
+    if (isWithdrawal) {
+      const noteHtml = dep.note ? `<div class="deposit-history-note">${esc(dep.note)}</div>` : '';
+      return `
+        <div class="deposit-history-item glass-card withdrawal-item" data-dep-id="${dep.id}">
+          <div class="deposit-history-header" onclick="toggleDepositRow(this.parentElement)">
+            <div class="deposit-history-icon withdrawal-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5,12 12,19 19,12"/></svg>
+            </div>
+            <div class="deposit-history-info">
+              <div class="deposit-history-amount withdrawal-amount">−${fmt(dep.amount)}</div>
+              <div class="deposit-history-meta">${fmtDate(dep.date)} · Withdrawal</div>
+              ${noteHtml}
+            </div>
+            <svg class="deposit-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9,18 15,12 9,6"/></svg>
+          </div>
+          <div class="deposit-history-detail">
+            <div class="deposit-detail-row">
+              <div class="deposit-detail-dot" style="background:#f87171"></div>
+              <div class="deposit-detail-label">Withdrawn from Available Bank</div>
+              <div class="deposit-detail-amount withdrawal-amount">−${fmt(dep.amount)}</div>
+            </div>
+            <div class="deposit-detail-row" style="justify-content:flex-end">
+              <button class="want-card-btn danger" style="width:auto;padding:6px 14px;border-radius:8px;font-size:12px" onclick="confirmDeleteDeposit('${dep.id}')">Remove</button>
+            </div>
+          </div>
+        </div>`;
+    }
+
     const allRows = [
       { label: 'Kept in Savings', pct: dep.savingsPercent, amount: dep.savedToReserve, color: '#38bdf8' },
       ...(dep.allocations || []).map((al, i) => ({ label: esc(al.wantName), pct: al.allocPercent, amount: al.amount, color: paletteColor(i + 1) })),
@@ -777,20 +810,78 @@ function setDepositDateDefault() {
   if (el && !el.value) el.value = new Date().toISOString().slice(0, 10);
 }
 
-$('#deposit-amount').addEventListener('input', updateDepositPreview);
+$('#deposit-amount').addEventListener('input', () => {
+  if ($('#deposit-type-toggle').dataset.mode === 'deposit') updateDepositPreview();
+  else updateWithdrawalPreview();
+});
 $('#deposit-savings-pct').addEventListener('input', updateDepositPreview);
+
+// ─── Deposit / Withdrawal toggle ─────────────
+function setDepositMode(mode) {
+  const toggle = $('#deposit-type-toggle');
+  toggle.dataset.mode = mode;
+  const isWithdraw = mode === 'withdrawal';
+  $('#deposit-savings-row').style.display = isWithdraw ? 'none' : '';
+  $('#deposit-amount-label').textContent  = isWithdraw ? 'Withdrawal Amount' : 'Deposit Amount';
+  $('#add-deposit-btn').textContent       = isWithdraw ? 'Add Withdrawal' : 'Add Deposit';
+  $('#add-deposit-btn').classList.toggle('btn-danger', isWithdraw);
+  $('#deposit-form-card').classList.toggle('withdrawal-mode', isWithdraw);
+  $$('.dep-type-pill').forEach(p => p.classList.toggle('active', p.dataset.type === mode));
+  _perDepositAllocs = null;
+  $('#deposit-preview').hidden = true;
+  $('#deposit-amount').value = '';
+}
+$$('.dep-type-pill').forEach(pill => {
+  pill.addEventListener('click', () => setDepositMode(pill.dataset.type));
+});
+
+function updateWithdrawalPreview() {
+  const amount  = parseFloat($('#deposit-amount').value) || 0;
+  const preview = $('#deposit-preview');
+  const rows    = $('#deposit-preview-rows');
+  if (amount <= 0) { preview.hidden = true; return; }
+  preview.removeAttribute('hidden');
+  const available = getAvailableBank();
+  const after     = round2(available - amount);
+  rows.innerHTML = `
+    <div class="preview-row">
+      <div class="preview-dot" style="background:#f87171"></div>
+      <div class="preview-label">From Available Bank</div>
+      <div class="preview-amount withdrawal-amount">−${fmt(amount)}</div>
+    </div>
+    <div class="preview-row preview-bank-row">
+      <div class="preview-dot" style="background:var(--text3)"></div>
+      <div class="preview-label">Available Bank After</div>
+      <div class="preview-amount preview-bank-amt" style="${after < 0 ? '-webkit-text-fill-color:#f87171;color:#f87171' : ''}">${fmt(after)}</div>
+    </div>`;
+}
 
 $('#add-deposit-btn').addEventListener('click', async () => {
   const amount    = parseFloat($('#deposit-amount').value);
-  const savPct    = parseFloat($('#deposit-savings-pct').value);
   const note      = $('#deposit-note').value.trim();
   const dateInput = $('#deposit-date').value;
+  const mode      = $('#deposit-type-toggle').dataset.mode || 'deposit';
 
-  if (isNaN(amount) || amount <= 0) { toast('Enter a valid deposit amount'); return; }
-  if (isNaN(savPct) || savPct < 0 || savPct > 100) { toast('Savings % must be 0–100'); return; }
-  if (!dateInput) { toast('Pick a date for this deposit'); return; }
+  if (isNaN(amount) || amount <= 0) { toast('Enter a valid amount'); return; }
+  if (!dateInput) { toast('Pick a date'); return; }
 
   const date = new Date(dateInput + 'T12:00:00').toISOString();
+
+  if (mode === 'withdrawal') {
+    const withdrawal = { id: uid(), type: 'withdrawal', amount, note: note || '', date };
+    await storage.saveDeposit(withdrawal);
+    _perDepositAllocs = null;
+    $('#deposit-amount').value = '';
+    $('#deposit-note').value   = '';
+    $('#deposit-preview').hidden = true;
+    setDepositDateDefault();
+    toast('Withdrawal recorded ✓');
+    renderBank();
+    return;
+  }
+
+  const savPct = parseFloat($('#deposit-savings-pct').value);
+  if (isNaN(savPct) || savPct < 0 || savPct > 100) { toast('Savings % must be 0–100'); return; }
 
   const allocOverrides = _perDepositAllocs || Object.fromEntries(state.wants.map(w => [w.id, w.allocationPercent || 0]));
   const { savedToReserve, allocations, unallocated } = calcDepositSplitCustom(amount, savPct, allocOverrides);

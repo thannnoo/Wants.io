@@ -123,18 +123,23 @@
         </div>
 
         <!-- Add Deposit form -->
-        <div class="form-card glass-card">
-          <div class="form-card-title">Add Deposit</div>
+        <div class="form-card glass-card" id="deposit-form-card">
+          <div class="form-card-header">
+            <div id="deposit-type-toggle" data-mode="deposit" class="dep-type-toggle">
+              <button class="dep-type-pill active" data-type="deposit">+ Deposit</button>
+              <button class="dep-type-pill" data-type="withdrawal">− Withdraw</button>
+            </div>
+          </div>
 
           <div class="field-row">
             <div class="field-group">
-              <label class="field-label">Deposit Amount</label>
+              <label class="field-label" id="deposit-amount-label">Deposit Amount</label>
               <div class="input-group">
                 <span class="input-prefix">$</span>
                 <input type="number" id="deposit-amount" class="input-field" placeholder="0.00" min="0" step="0.01" />
               </div>
             </div>
-            <div class="field-group">
+            <div class="field-group" id="deposit-savings-row">
               <label class="field-label">Keep in Savings</label>
               <div class="input-group">
                 <input type="number" id="deposit-savings-pct" class="input-field" value="20" min="0" max="100" step="1" />
